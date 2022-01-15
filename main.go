@@ -3,76 +3,66 @@ package main
 import (
 	"bufio"
 	"crypto/md5"
-	"crypto/sha1"
 	"encoding/hex"
-	"flag"
 	"fmt"
 	"os"
 )
 
-func GenerateMD5Hash(text string) string {
-	hash := md5.Sum([]byte(text))
-	return hex.EncodeToString(hash[:])
+func createHash(key string) string {
+	// iniciando o modulo de md5
+	hasher := md5.New()
+	// transformando a string para byte e escrevendo o hash
+	hasher.Write([]byte(key))
+	// retornando o hash em md5
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-func GenerateSHA1Hash(text string) string {
-	h := sha1.New()
-	h.Write([]byte(text))
-	return hex.EncodeToString(h.Sum(nil))
-}
+func goRoutines(password, v string, passwordFound chan<- string) {
 
-func ValidateHashShA1(password, text string) {
-	if GenerateSHA1Hash(text) == password {
-		fmt.Println("Password crack finish...")
-		fmt.Println("cryptography: SHA1\npassword: ", text)
-		os.Exit(0)
-	}
-	return
+	// abrindo o arquivo informado
+	file, err := os.Open(v)
 
-}
-
-func ValidateHashMD5(password, text string) {
-	if GenerateMD5Hash(text) == password {
-		fmt.Println("Password crack finish..")
-		fmt.Println("cryptography: MD5\npassword:", text)
-		os.Exit(0)
-	}
-	return
-}
-
-func goRoutines(password string, phrase chan string) {
-	for v := range phrase {
-		go ValidateHashMD5(password, v)
-		go ValidateHashShA1(password, v)
-	}
-}
-
-func main() {
-	password := flag.String("h", "", "hash em md5. (Required)")
-	flag.Parse()
-
-	if *password == "" {
-		return
-	}
-
-	phrase := make(chan string)
-
-	file, err := os.Open("dictionary.txt")
-
+	// caso não consiga encontrar o arquivo
 	if err != nil {
+		// informando o erro
 		panic(err)
 	}
 
-	go goRoutines(*password, phrase)
-
+	// lendo o arquivo aberto
 	fileScanner := bufio.NewScanner(file)
 
+	// iterando as linhas dos arquivos
 	for fileScanner.Scan() {
-		phrase <- fileScanner.Text()
+		// validando o hash é igual a senha passado
+		if createHash(fileScanner.Text()) == password {
+			// pegando a senha encontrada e passando para o canal
+			passwordFound <- fileScanner.Text()
+			// parando a iteração
+			break
+		}
 	}
-
-	close(phrase)
-
+	// fechando o arquivo
 	defer file.Close()
 
+}
+
+func main() {
+
+	// a senha para comparação
+	password := "1e668de6b2119636f6b37ce07893642d"
+
+	// lista de arquivos
+	listFiles := []string{"dictionary1.txt", "dictionary2.txt"}
+
+	// criando um canal para caso a senha seja encontrada
+	passwordFound := make(chan string)
+
+	// iterando na lista de arquivos
+	for _, v := range listFiles {
+		// criando goroutines para comparação de cada lista
+		go goRoutines(password, v, passwordFound)
+	}
+
+	// informando a senha que está valida.
+	fmt.Println("Senha encontrada: ", <-passwordFound)
 }
